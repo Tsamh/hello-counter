@@ -43,3 +43,8 @@ yarn-error.*
 # Secrets de signature, ne doivent jamais etre versionnes
 *.keystore
 *.b64
+
+# Documents de travail personnels, non publies
+/docs
+info.md
+NOTES.md
