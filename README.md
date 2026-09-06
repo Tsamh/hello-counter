@@ -82,15 +82,17 @@ Le dossier `android/` n'est pas versionné. Il est régénéré par `expo prebui
 
 ## Installer sur un téléphone
 
-Le dépôt est privé, les fichiers des Releases ne sont donc pas téléchargeables sans être connecté à GitHub.
+Chaque build publie un APK dans les [Releases](../../releases). Depuis le téléphone :
 
-1. se connecter à GitHub depuis le navigateur du téléphone
-2. ouvrir la dernière Release du dépôt
-3. télécharger le fichier `.apk`
-4. autoriser l'installation depuis cette source quand Android le demande
-5. installer
+1. ouvrir la dernière Release et télécharger le fichier `.apk`
+2. autoriser l'installation depuis cette source quand Android le demande
+3. installer
+
+Aucune désinstallation n'est nécessaire pour passer d'une version à la suivante : le numéro de build augmente à chaque compilation et la clé de signature ne change pas.
 
 Depuis le PC, en solution de repli : `gh release download --pattern "*.apk"`, puis transfert par câble.
+
+L'application n'a aucune utilité réelle, c'est un support d'apprentissage. Elle ne demande aucune permission au delà de celles que React Native déclare par défaut.
 
 ## Signature
 
