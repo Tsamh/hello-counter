@@ -1,5 +1,5 @@
 {
-  "name": "scaffold",
+  "name": "hello-counter",
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
