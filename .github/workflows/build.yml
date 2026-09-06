@@ -103,8 +103,15 @@ jobs:
         run: |
           APK=android/app/build/outputs/apk/release/app-release.apk
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "ECHEC : apksigner introuvable sous $ANDROID_HOME/build-tools."
+            exit 1
+          fi
           echo "apksigner utilise : $APKSIGNER"
-          "$APKSIGNER" verify --print-certs "$APK" | tee signataire.txt
+          # Pas de pipe ici : un pipe masquerait le code de retour d apksigner,
+          # et une sortie vide ferait passer le grep, donc valider par silence.
+          "$APKSIGNER" verify --print-certs "$APK" > signataire.txt
+          cat signataire.txt
           if grep -qi "CN=Android Debug" signataire.txt; then
             echo "ECHEC : l APK est signe avec la cle de debug, pas avec la cle de release."
             exit 1
