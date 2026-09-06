@@ -1,0 +1,147 @@
+name: Build APK Android
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Un nouveau push annule le build precedent encore en cours,
+# pour ne pas consommer inutilement des minutes.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+# Necessaire pour creer la Release.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dependances
+        run: npm ci
+
+      - name: Verifier les types
+        run: npm run typecheck
+
+      - name: Lancer les tests
+        run: npm test
+
+      - name: Installer le JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      # Sans ce garde-fou, un secret absent ne provoquerait aucune erreur :
+      # Gradle retomberait sur la cle de debug et publierait un APK
+      # d apparence normale, mais impossible a mettre a jour ensuite.
+      - name: Verifier la presence des secrets de signature
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          manquants=""
+          [ -z "$KEYSTORE_BASE64" ] && manquants="$manquants ANDROID_KEYSTORE_BASE64"
+          [ -z "$STORE_PASSWORD" ] && manquants="$manquants ANDROID_KEYSTORE_PASSWORD"
+          [ -z "$KEY_ALIAS" ] && manquants="$manquants ANDROID_KEY_ALIAS"
+          [ -z "$KEY_PASSWORD" ] && manquants="$manquants ANDROID_KEY_PASSWORD"
+          if [ -n "$manquants" ]; then
+            echo "Secrets de signature manquants :$manquants"
+            echo "Cree-les avec gh secret set, puis relance le workflow."
+            exit 1
+          fi
+          echo "Les quatre secrets de signature sont presents."
+
+      - name: Reconstituer le keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          ls -l "$RUNNER_TEMP/release.keystore"
+
+      - name: Definir le numero de build
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: node scripts/set-version-code.mjs
+
+      - name: Generer le projet Android
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Compiler et signer l APK
+        working-directory: android
+        env:
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease \
+            -PMYAPP_RELEASE_STORE_FILE="$RUNNER_TEMP/release.keystore" \
+            -PMYAPP_RELEASE_STORE_PASSWORD="$STORE_PASSWORD" \
+            -PMYAPP_RELEASE_KEY_ALIAS="$KEY_ALIAS" \
+            -PMYAPP_RELEASE_KEY_PASSWORD="$KEY_PASSWORD"
+
+      # Preuve de bout en bout que l APK porte bien ta cle et non celle de
+      # debug. C est la seule verification qui constate le resultat plutot
+      # que les intentions.
+      - name: Verifier le signataire de l APK
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          echo "apksigner utilise : $APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK" | tee signataire.txt
+          if grep -qi "CN=Android Debug" signataire.txt; then
+            echo "ECHEC : l APK est signe avec la cle de debug, pas avec la cle de release."
+            exit 1
+          fi
+          echo "APK signe avec la cle de release."
+
+      - name: Nommer l APK
+        id: apk
+        run: |
+          VERSION=$(node -p "require('./app.json').expo.version")
+          TAG="v${VERSION}-b${{ github.run_number }}"
+          NAME="hello-counter-${TAG}.apk"
+          mv android/app/build/outputs/apk/release/app-release.apk "$NAME"
+          ls -l "$NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Publier la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.apk.outputs.tag }}" "${{ steps.apk.outputs.name }}" \
+            --title "${{ steps.apk.outputs.tag }}" \
+            --notes "Build automatique du commit ${{ github.sha }}"
+
+      - name: Deposer l APK en artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: ${{ steps.apk.outputs.name }}
+          retention-days: 14
+
+      - name: Deposer les rapports Gradle en cas d echec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapports-gradle
+          path: android/app/build/reports
+          retention-days: 7
+          if-no-files-found: ignore
