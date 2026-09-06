@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 72,
     fontWeight: '700',
-    color: '#2563eb',
+    color: '#970f06',
     fontVariant: ['tabular-nums'],
   },
   row: {

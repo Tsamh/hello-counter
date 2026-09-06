@@ -13,7 +13,7 @@
       "package": "com.tsamh.hellocounter",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#2563EB",
+        "backgroundColor": "#970f06",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

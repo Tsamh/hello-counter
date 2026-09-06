@@ -13,8 +13,8 @@ import { dirname, join } from 'node:path';
  * Usage : node scripts/generate-icons.mjs
  */
 
-// Palette. Le bleu reprend celui de la valeur du compteur dans l ecran.
-const FOND = [37, 99, 235]; // #2563eb
+// Palette. Le rouge reprend celui de la valeur du compteur dans l ecran.
+const FOND = [151, 15, 6]; // #970f06
 const MOTIF = [255, 255, 255]; // blanc
 
 // Geometrie, exprimee en fraction de la taille de l image, pour rester
